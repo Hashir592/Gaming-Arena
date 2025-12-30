@@ -224,6 +224,29 @@ int main() {
         
         int playerId = std::stoi(playerIdStr);
         
+        // Fix: Force reset stale player state if they try to join again
+        Player* player = playerStorage.get(playerId);
+        if (player) {
+            if (player->isInQueue) {
+                printf("[Server] Resetting stale queue state for player %d\n", playerId);
+                matchmaker.leaveQueue(playerId, gameName.c_str());
+                player->isInQueue = false;
+                playerStorage.update(playerId, *player);
+            }
+            
+            if (player->isInMatch) {
+                printf("[Server] Force-ending stale match for player %d\n", playerId);
+                // Find and end the stale match to free up the opponent (bot/human)
+                int activeMatchId = matchmaker.getPlayerActiveMatch(playerId);
+                if (activeMatchId != -1) {
+                    // Give win to this player to close it out simply
+                    matchmaker.submitMatchResult(activeMatchId, playerId);
+                }
+                player->isInMatch = false;
+                playerStorage.update(playerId, *player);
+            }
+        }
+
         if (matchmaker.joinQueue(playerId, gameName.c_str())) {
             int matchId = matchmaker.tryCreateMatch(gameName.c_str());
             
