@@ -46,8 +46,10 @@ class PingPongGame {
         this.remotePaddleY = 0;
         this.targetRemotePaddleY = 0;
 
-        // Server ball state (for Client interpolation)
-        this.serverBall = { x: 0, y: 0, vx: 0, vy: 0 };
+        // Snapshot buffer for smooth ball interpolation (Client only)
+        this.snapshotBuffer = [];
+        this.maxSnapshots = 4;
+        this.interpolationDelay = 40; // ms behind server
 
         // AI settings
         this.aiReactionDelay = 0.15; // Slight delay to make AI beatable
@@ -76,6 +78,16 @@ class PingPongGame {
     }
 
     onGameStateReceived(data) {
+        // Handle GAME_OVER from Host
+        if (data.type === 'GAME_OVER') {
+            this.paddle1.score = data.s1;
+            this.paddle2.score = data.s2;
+            updateScore(this.paddle1.score, this.paddle2.score);
+            this.stop();
+            this.onGameEnd(data.winner);
+            return;
+        }
+
         if (data.type === 'SCORE_UPDATE') {
             this.paddle1.score = data.score1;
             this.paddle2.score = data.score2;
@@ -96,12 +108,19 @@ class PingPongGame {
                 this.targetRemotePaddleY = data.p1y;
             }
 
-            // Store server ball state for interpolation
+            // Store snapshot for interpolation buffer
             if (data.bx !== undefined && data.by !== undefined) {
-                this.serverBall.x = data.bx;
-                this.serverBall.y = data.by;
-                this.serverBall.vx = data.bvx;
-                this.serverBall.vy = data.bvy;
+                const snapshot = {
+                    time: Date.now(),
+                    x: data.bx,
+                    y: data.by,
+                    vx: data.bvx,
+                    vy: data.bvy
+                };
+                this.snapshotBuffer.push(snapshot);
+                if (this.snapshotBuffer.length > this.maxSnapshots) {
+                    this.snapshotBuffer.shift();
+                }
             }
 
             // Sync scores (always accept server's score as truth)
@@ -288,10 +307,8 @@ class PingPongGame {
             } else {
                 this.paddle1.y = this.remotePaddleY;
 
-                // Client: Directly use server ball position (60fps updates = smooth enough)
-                // Interpolation toward a moving target causes jitter
-                this.ball.x = this.serverBall.x;
-                this.ball.y = this.serverBall.y;
+                // Client: Use snapshot interpolation for smooth ball
+                this.interpolateBall();
             }
         } else if (this.isOpponentBot) {
             // Singleplayer Bot Logic
@@ -406,13 +423,62 @@ class PingPongGame {
     }
 
     checkWin() {
+        let winner = 0;
         if (this.paddle1.score >= this.winScore) {
-            this.stop();
-            this.onGameEnd(1);
+            winner = 1;
         } else if (this.paddle2.score >= this.winScore) {
-            this.stop();
-            this.onGameEnd(2);
+            winner = 2;
         }
+
+        if (winner > 0) {
+            // Send GAME_OVER to opponent before stopping
+            if (this.isMultiplayer && this.isPlayer1) {
+                api.sendGameState({
+                    type: 'GAME_OVER',
+                    winner: winner,
+                    s1: this.paddle1.score,
+                    s2: this.paddle2.score
+                });
+            }
+            this.stop();
+            this.onGameEnd(winner);
+        }
+    }
+
+    // Snapshot interpolation for smooth ball movement on Client
+    interpolateBall() {
+        if (this.snapshotBuffer.length < 2) {
+            // Not enough snapshots - use latest if available
+            if (this.snapshotBuffer.length === 1) {
+                this.ball.x = this.snapshotBuffer[0].x;
+                this.ball.y = this.snapshotBuffer[0].y;
+            }
+            return;
+        }
+
+        // Render time is slightly behind server
+        const renderTime = Date.now() - this.interpolationDelay;
+
+        // Find two snapshots to interpolate between
+        let from = this.snapshotBuffer[0];
+        let to = this.snapshotBuffer[1];
+
+        for (let i = 0; i < this.snapshotBuffer.length - 1; i++) {
+            if (this.snapshotBuffer[i].time <= renderTime &&
+                this.snapshotBuffer[i + 1].time >= renderTime) {
+                from = this.snapshotBuffer[i];
+                to = this.snapshotBuffer[i + 1];
+                break;
+            }
+        }
+
+        // Calculate interpolation alpha
+        const duration = to.time - from.time;
+        const alpha = duration > 0 ? Math.min(1, (renderTime - from.time) / duration) : 1;
+
+        // Lerp between snapshots
+        this.ball.x = from.x + (to.x - from.x) * alpha;
+        this.ball.y = from.y + (to.y - from.y) * alpha;
     }
 
     render() {
