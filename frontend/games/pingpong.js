@@ -46,6 +46,9 @@ class PingPongGame {
         this.remotePaddleY = 0;
         this.targetRemotePaddleY = 0;
 
+        // Server ball state (for Client interpolation)
+        this.serverBall = { x: 0, y: 0, vx: 0, vy: 0 };
+
         // AI settings
         this.aiReactionDelay = 0.15; // Slight delay to make AI beatable
         this.aiErrorMargin = 30; // Random error in targeting
@@ -93,37 +96,19 @@ class PingPongGame {
                 this.targetRemotePaddleY = data.p1y;
             }
 
-            // Sync ball position (Smooth Reconciliation)
+            // Store server ball state for interpolation
             if (data.bx !== undefined && data.by !== undefined) {
-                // Calculate difference between local prediction and server truth
-                const dx = data.bx - this.ball.x;
-                const dy = data.by - this.ball.y;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                // If deviation is large (lag spike/packet loss), hard snap
-                if (dist > 50) {
-                    this.ball.x = data.bx;
-                    this.ball.y = data.by;
-                    this.ball.vx = data.bvx;
-                    this.ball.vy = data.bvy;
-                } else {
-                    // Small deviation: Smoothly adjust to converge
-                    this.ball.x += dx * 0.15;
-                    this.ball.y += dy * 0.15;
-
-                    // And take the new velocity
-                    this.ball.vx = data.bvx;
-                    this.ball.vy = data.bvy;
-                }
+                this.serverBall.x = data.bx;
+                this.serverBall.y = data.by;
+                this.serverBall.vx = data.bvx;
+                this.serverBall.vy = data.bvy;
             }
 
-            // Sync scores
+            // Sync scores (always accept server's score as truth)
             if (data.s1 !== undefined && data.s2 !== undefined) {
-                if (this.paddle1.score !== data.s1 || this.paddle2.score !== data.s2) {
-                    this.paddle1.score = data.s1;
-                    this.paddle2.score = data.s2;
-                    updateScore(this.paddle1.score, this.paddle2.score);
-                }
+                this.paddle1.score = data.s1;
+                this.paddle2.score = data.s2;
+                updateScore(this.paddle1.score, this.paddle2.score);
             }
         }
     }
@@ -241,9 +226,9 @@ class PingPongGame {
         this.reset();
         this.gameLoop();
 
-        // Network sync loop (30fps)
+        // Network sync loop (60fps for smooth updates)
         if (this.isMultiplayer) {
-            this.networkInterval = setInterval(() => this.sendState(), 33);
+            this.networkInterval = setInterval(() => this.sendState(), 16);
         }
     }
 
@@ -295,13 +280,21 @@ class PingPongGame {
 
         // Handle Remote Player Movement (Smooth Interpolation)
         if (this.isMultiplayer) {
-            const lerpFactor = 0.25;
+            const lerpFactor = 0.3; // Faster interpolation
             this.remotePaddleY += (this.targetRemotePaddleY - this.remotePaddleY) * lerpFactor;
 
             if (this.isPlayer1) {
                 this.paddle2.y = this.remotePaddleY;
             } else {
                 this.paddle1.y = this.remotePaddleY;
+
+                // Client: Interpolate ball toward server position (NO local physics)
+                const ballLerp = 0.4; // Fast interpolation for responsive feel
+                this.ball.x += (this.serverBall.x - this.ball.x) * ballLerp;
+                this.ball.y += (this.serverBall.y - this.ball.y) * ballLerp;
+                // Also apply velocity for smooth prediction between updates
+                this.ball.x += this.serverBall.vx * 0.3;
+                this.ball.y += this.serverBall.vy * 0.3;
             }
         } else if (this.isOpponentBot) {
             // Singleplayer Bot Logic
@@ -316,9 +309,10 @@ class PingPongGame {
         this.paddle1.y = Math.max(0, Math.min(this.canvas.height - this.paddleHeight, this.paddle1.y));
         this.paddle2.y = Math.max(0, Math.min(this.canvas.height - this.paddleHeight, this.paddle2.y));
 
-        // Physics: Run physics for everyone to ensure smooth movement (Client prediction)
-        // Client will correct position when server update arrives
-        this.updatePhysics();
+        // Physics: ONLY Host (Player 1) runs physics. Client uses interpolation.
+        if (this.isPlayer1 || !this.isMultiplayer) {
+            this.updatePhysics();
+        }
     }
 
     updatePhysics() {
