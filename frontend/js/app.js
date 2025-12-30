@@ -206,8 +206,9 @@ async function showMatchFoundModal() {
 
     // Check if opponent is a bot
     let isOpponentBot = false;
+    let opponent = null;
     try {
-        const opponent = await api.getPlayer(opponentId);
+        opponent = await api.getPlayer(opponentId);
         console.log('Opponent Data:', opponent);
         if (opponent && opponent.isBot) {
             isOpponentBot = true;
