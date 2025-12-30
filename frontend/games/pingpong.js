@@ -2,22 +2,32 @@
  * Ping Pong Game
  * Classic two-player paddle game
  * Controls: Player 1 (W/S), Player 2 (Arrow keys or AI)
+ * 
+ * Multiplayer Architecture:
+ * - Player 1 (Host): Calculates ball physics, sends ball/paddle/score data
+ * - Player 2 (Client): Receives ball data, sends paddle data
  */
 
 let pingPongGame = null;
 
-function initPingPong(canvas, onGameEnd, isOpponentBot = false) {
-    pingPongGame = new PingPongGame(canvas, onGameEnd, isOpponentBot);
+function initPingPong(canvas, onGameEnd, isOpponentBot = false, matchId = null, isPlayer1 = true, playerId = null) {
+    pingPongGame = new PingPongGame(canvas, onGameEnd, isOpponentBot, matchId, isPlayer1, playerId);
     pingPongGame.start();
 }
 
 class PingPongGame {
-    constructor(canvas, onGameEnd, isOpponentBot = false) {
+    constructor(canvas, onGameEnd, isOpponentBot = false, matchId = null, isPlayer1 = true, playerId = null) {
         this.canvas = canvas;
         this.ctx = canvas.getContext('2d');
         this.onGameEnd = onGameEnd;
         this.running = false;
+
+        // Multiplayer settings
         this.isOpponentBot = isOpponentBot;
+        this.matchId = matchId;
+        this.isPlayer1 = isPlayer1; // true = Host, false = Client
+        this.playerId = playerId;
+        this.isMultiplayer = matchId !== null && !isOpponentBot;
 
         // Game settings
         this.winScore = 5;
@@ -31,6 +41,11 @@ class PingPongGame {
         this.ballSize = 15;
         this.ballSpeed = 6;
 
+        // Network smoothing
+        this.lastRemoteUpdate = 0;
+        this.remotePaddleY = 0;
+        this.targetRemotePaddleY = 0;
+
         // AI settings
         this.aiReactionDelay = 0.15; // Slight delay to make AI beatable
         this.aiErrorMargin = 30; // Random error in targeting
@@ -38,9 +53,85 @@ class PingPongGame {
         // Initialize game state
         this.reset();
 
+        // Setup network callbacks if multiplayer
+        if (this.isMultiplayer) {
+            this.setupNetwork();
+        }
+
         // Input handling
         this.keys = {};
         this.setupInput();
+    }
+
+    setupNetwork() {
+        // Callback when we receive game state from opponent
+        api.setGameCallbacks(
+            (data) => this.onGameStateReceived(data),
+            () => { console.log('Opponent Connected'); },
+            () => { console.log('Opponent Left'); showToast('Opponent disconnected', 'error'); }
+        );
+    }
+
+    onGameStateReceived(data) {
+        if (data.type === 'SCORE_UPDATE') {
+            this.paddle1.score = data.score1;
+            this.paddle2.score = data.score2;
+            updateScore(this.paddle1.score, this.paddle2.score);
+            return;
+        }
+
+        // Handle game state (paddle/ball positions)
+        if (this.isPlayer1) {
+            // As Player 1 (Host), we only care about Player 2's paddle position
+            if (data.p2y !== undefined) {
+                this.targetRemotePaddleY = data.p2y;
+                this.lastRemoteUpdate = Date.now();
+            }
+        } else {
+            // As Player 2 (Client), we receive everything from Player 1
+            if (data.p1y !== undefined) {
+                this.targetRemotePaddleY = data.p1y;
+            }
+
+            // Sync ball position (client trusts host completely for ball)
+            if (data.bx !== undefined && data.by !== undefined) {
+                this.ball.x = data.bx;
+                this.ball.y = data.by;
+                this.ball.vx = data.bvx;
+                this.ball.vy = data.bvy;
+            }
+
+            // Sync scores
+            if (data.s1 !== undefined && data.s2 !== undefined) {
+                if (this.paddle1.score !== data.s1 || this.paddle2.score !== data.s2) {
+                    this.paddle1.score = data.s1;
+                    this.paddle2.score = data.s2;
+                    updateScore(this.paddle1.score, this.paddle2.score);
+                }
+            }
+        }
+    }
+
+    sendState() {
+        if (!this.running) return;
+
+        if (this.isPlayer1) {
+            // Host sends: P1 Paddle, Ball, Scores
+            api.sendGameState({
+                p1y: this.paddle1.y,
+                bx: this.ball.x,
+                by: this.ball.y,
+                bvx: this.ball.vx,
+                bvy: this.ball.vy,
+                s1: this.paddle1.score,
+                s2: this.paddle2.score
+            });
+        } else {
+            // Client sends: P2 Paddle only
+            api.sendGameState({
+                p2y: this.paddle2.y
+            });
+        }
     }
 
     reset() {
@@ -57,17 +148,27 @@ class PingPongGame {
             score: 0
         };
 
+        // Initial remote positions
+        this.remotePaddleY = this.isPlayer1 ? this.paddle2.y : this.paddle1.y;
+        this.targetRemotePaddleY = this.remotePaddleY;
+
         // Ball
         this.resetBall();
     }
 
     resetBall() {
-        this.ball = {
-            x: this.canvas.width / 2,
-            y: this.canvas.height / 2,
-            vx: this.ballSpeed * (Math.random() > 0.5 ? 1 : -1),
-            vy: this.ballSpeed * (Math.random() - 0.5)
-        };
+        // Only Host (Player 1) or Singleplayer determines ball reset
+        if (this.isPlayer1 || !this.isMultiplayer) {
+            this.ball = {
+                x: this.canvas.width / 2,
+                y: this.canvas.height / 2,
+                vx: this.ballSpeed * (Math.random() > 0.5 ? 1 : -1),
+                vy: this.ballSpeed * (Math.random() - 0.5)
+            };
+        } else {
+            // Client initializes ball but waits for update
+            this.ball = { x: this.canvas.width / 2, y: this.canvas.height / 2, vx: 0, vy: 0 };
+        }
     }
 
     setupInput() {
@@ -94,12 +195,20 @@ class PingPongGame {
         this.running = true;
         this.reset();
         this.gameLoop();
+
+        // Network sync loop (30fps)
+        if (this.isMultiplayer) {
+            this.networkInterval = setInterval(() => this.sendState(), 33);
+        }
     }
 
     stop() {
         this.running = false;
         if (window.currentGameLoop) {
             cancelAnimationFrame(window.currentGameLoop);
+        }
+        if (this.networkInterval) {
+            clearInterval(this.networkInterval);
         }
     }
 
@@ -113,31 +222,55 @@ class PingPongGame {
     }
 
     update() {
-        // Player 1 input (W/S) - Always human controlled
-        if (this.keys['w'] || this.keys['W']) {
-            this.paddle1.y -= this.paddleSpeed;
-        }
-        if (this.keys['s'] || this.keys['S']) {
-            this.paddle1.y += this.paddleSpeed;
-        }
-
-        // Player 2: AI or keyboard
-        if (this.isOpponentBot) {
-            this.updateBotAI();
+        // Handle Local Player Input
+        if (this.isPlayer1) {
+            // Player 1 controls Left Paddle (W/S or Arrows if preferred for P1)
+            if (this.keys['w'] || this.keys['W'] || this.keys['ArrowUp']) {
+                this.paddle1.y -= this.paddleSpeed;
+            }
+            if (this.keys['s'] || this.keys['S'] || this.keys['ArrowDown']) {
+                this.paddle1.y += this.paddleSpeed;
+            }
         } else {
-            // Human player 2 (Arrow keys)
-            if (this.keys['ArrowUp']) {
+            // Player 2 controls Right Paddle (Arrow keys or W/S)
+            if (this.keys['ArrowUp'] || this.keys['w'] || this.keys['W']) {
                 this.paddle2.y -= this.paddleSpeed;
             }
-            if (this.keys['ArrowDown']) {
+            if (this.keys['ArrowDown'] || this.keys['s'] || this.keys['S']) {
                 this.paddle2.y += this.paddleSpeed;
             }
+        }
+
+        // Handle Remote Player Movement (Interpolation)
+        if (this.isMultiplayer) {
+            const lerpFactor = 0.2;
+            this.remotePaddleY += (this.targetRemotePaddleY - this.remotePaddleY) * lerpFactor;
+
+            if (this.isPlayer1) {
+                this.paddle2.y = this.remotePaddleY;
+            } else {
+                this.paddle1.y = this.remotePaddleY;
+            }
+        } else if (this.isOpponentBot) {
+            // Singleplayer Bot Logic
+            this.updateBotAI();
+        } else {
+            // Local multiplayer (debug/testing) - P2 controls
+            if (this.keys['ArrowUp']) this.paddle2.y -= this.paddleSpeed;
+            if (this.keys['ArrowDown']) this.paddle2.y += this.paddleSpeed;
         }
 
         // Keep paddles in bounds
         this.paddle1.y = Math.max(0, Math.min(this.canvas.height - this.paddleHeight, this.paddle1.y));
         this.paddle2.y = Math.max(0, Math.min(this.canvas.height - this.paddleHeight, this.paddle2.y));
 
+        // Physics: Only Host (Player 1) or Singleplayer runs ball physics
+        if (this.isPlayer1 || !this.isMultiplayer) {
+            this.updatePhysics();
+        }
+    }
+
+    updatePhysics() {
         // Ball movement
         this.ball.x += this.ball.vx;
         this.ball.y += this.ball.vy;
@@ -188,9 +321,6 @@ class PingPongGame {
 
     /**
      * AI Logic for Bot Paddle
-     * - Tracks ball Y position
-     * - Moves toward predicted ball position
-     * - Has slight reaction delay and error margin to be beatable
      */
     updateBotAI() {
         // Only react when ball is moving toward bot
@@ -264,15 +394,28 @@ class PingPongGame {
         ctx.shadowBlur = 20;
         ctx.shadowColor = '#6366f1';
         ctx.fillStyle = '#6366f1';
+
+        // PADDLE 1 (Left)
+        if (this.isPlayer1) {
+            ctx.fillStyle = '#6366f1'; // Self is always purple
+        } else {
+            ctx.fillStyle = '#f43f5e'; // Enemy is red
+            ctx.shadowColor = '#f43f5e';
+        }
         ctx.fillRect(this.paddle1.x, this.paddle1.y, this.paddleWidth, this.paddleHeight);
 
-        // Bot paddle has different color (orange glow)
+        // PADDLE 2 (Right)
         if (this.isOpponentBot) {
             ctx.shadowColor = '#f59e0b';
             ctx.fillStyle = '#f59e0b';
         } else {
-            ctx.shadowColor = '#8b5cf6';
-            ctx.fillStyle = '#8b5cf6';
+            if (!this.isPlayer1) {
+                ctx.fillStyle = '#6366f1'; // Self is always purple
+                ctx.shadowColor = '#6366f1';
+            } else {
+                ctx.fillStyle = '#f43f5e'; // Enemy is red
+                ctx.shadowColor = '#f43f5e';
+            }
         }
         ctx.fillRect(this.paddle2.x, this.paddle2.y, this.paddleWidth, this.paddleHeight);
 
@@ -293,12 +436,25 @@ class PingPongGame {
         ctx.fillText(this.paddle1.score, this.canvas.width / 4, 60);
         ctx.fillText(this.paddle2.score, this.canvas.width * 3 / 4, 60);
 
-        // Draw AI indicator if bot
+        // Draw Indicators
+        ctx.font = '14px Rajdhani';
+        ctx.textAlign = 'center';
+
         if (this.isOpponentBot) {
-            ctx.font = '14px Rajdhani';
             ctx.fillStyle = '#f59e0b';
             ctx.textAlign = 'right';
             ctx.fillText('🤖 AI', this.canvas.width - 20, 30);
+        } else if (this.isMultiplayer) {
+            ctx.fillStyle = '#22c55e';
+            ctx.fillText('🟢 ONLINE', this.canvas.width / 2, 30);
+
+            // Draw "YOU" indicator
+            ctx.fillStyle = '#fff';
+            if (this.isPlayer1) {
+                ctx.fillText('YOU', this.paddle1.x + this.paddleWidth / 2, this.paddle1.y - 10);
+            } else {
+                ctx.fillText('YOU', this.paddle2.x + this.paddleWidth / 2, this.paddle2.y - 10);
+            }
         }
     }
 }

@@ -244,24 +244,41 @@ function startGame() {
         gameNames[appState.currentGame] || 'Game';
 
     // Initialize game based on type
-    // Pass isOpponentBot flag so games can use AI for bot player
     const canvas = document.getElementById('gameCanvas');
     const isOpponentBot = appState.isOpponentBot;
 
+    // Multiplayer settings
+    let matchId = null;
+    let isPlayer1 = true;
+    let playerId = appState.currentPlayer ? appState.currentPlayer.id : null;
+
+    if (appState.currentMatch && !isOpponentBot) {
+        matchId = appState.currentMatch.matchId;
+        isPlayer1 = appState.currentMatch.player1Id === appState.currentPlayer.id;
+
+        // Connect to Game Socket
+        api.connectGameSocket(matchId, playerId);
+    }
+
+    console.log(`Starting Game: Bot=${isOpponentBot}, Match=${matchId}, P1=${isPlayer1}`);
+
     switch (appState.currentGame) {
         case 'pingpong':
-            initPingPong(canvas, onGameEnd, isOpponentBot);
+            initPingPong(canvas, onGameEnd, isOpponentBot, matchId, isPlayer1, playerId);
             break;
         case 'snake':
-            initSnake(canvas, onGameEnd, isOpponentBot);
+            initSnake(canvas, onGameEnd, isOpponentBot); // Snake needs sync later
             break;
         case 'tank':
-            initTank(canvas, onGameEnd, isOpponentBot);
+            initTank(canvas, onGameEnd, isOpponentBot); // Tank needs sync later
             break;
     }
 }
 
 async function onGameEnd(winner) {
+    // Disconnect socket when game ends
+    api.disconnectSocket();
+
     // Winner: 1 = player 1, 2 = player 2
     const match = appState.currentMatch;
     const winnerId = winner === 1 ? match.player1Id : match.player2Id;
@@ -310,6 +327,13 @@ function exitGame() {
     if (window.currentGameLoop) {
         cancelAnimationFrame(window.currentGameLoop);
     }
+
+    // Stop network sync
+    if (pingPongGame) {
+        pingPongGame.stop();
+    }
+
+    api.disconnectSocket();
 
     closeResultModal();
 }

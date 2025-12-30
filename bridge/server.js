@@ -2,6 +2,7 @@
  * Game Arena Web Server
  * 
  * Serves the ORIGINAL frontend and proxies API calls to C++ backend
+ * Also handles WebSocket connections for real-time multiplayer sync.
  * 
  * Architecture:
  *   Browser → Node.js (port 3000) → C++ Backend (port 8080)
@@ -14,6 +15,7 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
+const WebSocket = require('ws');
 
 const PORT = process.env.PORT || 3000;
 const CPP_PORT = 8080;
@@ -25,6 +27,76 @@ console.log('[Server] Platform:', process.platform);
 console.log('[Server] Using executable:', serverExe);
 
 const app = express();
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
+
+// ============== WEBSOCKET GAME RELAY ==============
+
+// Map to store match rooms: string (matchId) -> Set<WebSocket>
+const matchRooms = new Map();
+
+wss.on('connection', (ws) => {
+    console.log('[WS] Client connected');
+    let currentMatchId = null;
+
+    ws.on('message', (message) => {
+        try {
+            const data = JSON.parse(message);
+
+            if (data.type === 'JOIN_MATCH') {
+                const matchId = data.matchId.toString();
+                currentMatchId = matchId;
+
+                if (!matchRooms.has(matchId)) {
+                    matchRooms.set(matchId, new Set());
+                }
+
+                const room = matchRooms.get(matchId);
+                room.add(ws);
+                console.log(`[WS] Client joined match ${matchId} (Total: ${room.size})`);
+
+                // Notify others in room
+                room.forEach(client => {
+                    if (client !== ws && client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({ type: 'PLAYER_JOINED' }));
+                    }
+                });
+            }
+            else if (data.type === 'GAME_STATE' || data.type === 'SCORE_UPDATE') {
+                if (currentMatchId && matchRooms.has(currentMatchId)) {
+                    // Relay to OTHER players in the same match
+                    const room = matchRooms.get(currentMatchId);
+                    room.forEach(client => {
+                        if (client !== ws && client.readyState === WebSocket.OPEN) {
+                            client.send(message.toString());
+                        }
+                    });
+                }
+            }
+        } catch (err) {
+            console.error('[WS] Error:', err);
+        }
+    });
+
+    ws.on('close', () => {
+        if (currentMatchId && matchRooms.has(currentMatchId)) {
+            const room = matchRooms.get(currentMatchId);
+            room.delete(ws);
+
+            if (room.size === 0) {
+                matchRooms.delete(currentMatchId);
+            } else {
+                // Notify remaining player
+                room.forEach(client => {
+                    if (client.readyState === WebSocket.OPEN) {
+                        client.send(JSON.stringify({ type: 'PLAYER_LEFT' }));
+                    }
+                });
+            }
+            console.log(`[WS] Client left match ${currentMatchId}`);
+        }
+    });
+});
 
 // ============== START C++ BACKEND ==============
 
@@ -140,7 +212,8 @@ startCppBackend();
 
 // Wait a bit for C++ to start, then start web server
 setTimeout(() => {
-    app.listen(PORT, '0.0.0.0', () => {
+    // Note: Use 'server.listen' instead of 'app.listen' to include WebSocket upgrades
+    server.listen(PORT, '0.0.0.0', () => {
         console.log('=========================================');
         console.log('  🎮 GAME ARENA - Online');
         console.log('=========================================');
