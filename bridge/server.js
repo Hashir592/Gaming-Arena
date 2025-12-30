@@ -17,7 +17,11 @@ const http = require('http');
 const PORT = process.env.PORT || 3000;
 const CPP_PORT = 8080;
 const isWindows = process.platform === 'win32';
+// On Linux (Docker), the executable is 'server', on Windows it's 'server.exe'
 const serverExe = isWindows ? 'server.exe' : 'server';
+
+console.log('[Server] Platform:', process.platform);
+console.log('[Server] Using executable:', serverExe);
 
 const app = express();
 
