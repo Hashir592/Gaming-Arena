@@ -438,17 +438,25 @@ class PingPongGame {
         }
 
         if (winner > 0) {
-            // Send GAME_OVER to opponent before stopping
+            this.stop(); // Stop game loop first
+
             if (this.isMultiplayer && this.isPlayer1) {
+                // Send GAME_OVER to opponent
                 api.sendGameState({
                     type: 'GAME_OVER',
                     winner: winner,
                     s1: this.paddle1.score,
                     s2: this.paddle2.score
                 });
+
+                // Delay slightly to ensure message is delivered before disconnect
+                setTimeout(() => {
+                    this.onGameEnd(winner);
+                }, 300);
+            } else {
+                // Client or bot game - end immediately
+                this.onGameEnd(winner);
             }
-            this.stop();
-            this.onGameEnd(winner);
         }
     }
 
