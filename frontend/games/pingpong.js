@@ -288,13 +288,10 @@ class PingPongGame {
             } else {
                 this.paddle1.y = this.remotePaddleY;
 
-                // Client: Interpolate ball toward server position (NO local physics)
-                const ballLerp = 0.4; // Fast interpolation for responsive feel
+                // Client: Smoothly interpolate ball toward server position (NO local physics)
+                const ballLerp = 0.5; // Higher lerp for smoother tracking
                 this.ball.x += (this.serverBall.x - this.ball.x) * ballLerp;
                 this.ball.y += (this.serverBall.y - this.ball.y) * ballLerp;
-                // Also apply velocity for smooth prediction between updates
-                this.ball.x += this.serverBall.vx * 0.3;
-                this.ball.y += this.serverBall.vy * 0.3;
             }
         } else if (this.isOpponentBot) {
             // Singleplayer Bot Logic
