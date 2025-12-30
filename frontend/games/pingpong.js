@@ -347,7 +347,7 @@ class PingPongGame {
         // Ball collision with paddles
         // Left paddle (Player 1)
         // Add latency margin if this is remote paddle (we're Player 2)
-        const p1Margin = (this.isMultiplayer && !this.isPlayer1) ? 20 : 0;
+        const p1Margin = (this.isMultiplayer && !this.isPlayer1) ? 40 : 0;
         if (this.ball.x <= this.paddle1.x + this.paddleWidth &&
             this.ball.x + this.ballSize >= this.paddle1.x &&
             this.ball.y + this.ballSize >= this.paddle1.y - p1Margin &&
@@ -361,7 +361,7 @@ class PingPongGame {
 
         // Right paddle (Player 2)
         // Add latency margin if this is remote paddle (we're Player 1)
-        const p2Margin = (this.isMultiplayer && this.isPlayer1) ? 20 : 0;
+        const p2Margin = (this.isMultiplayer && this.isPlayer1) ? 40 : 0;
         if (this.ball.x + this.ballSize >= this.paddle2.x &&
             this.ball.x <= this.paddle2.x + this.paddleWidth &&
             this.ball.y + this.ballSize >= this.paddle2.y - p2Margin &&
