@@ -447,38 +447,52 @@ class PingPongGame {
 
     // Snapshot interpolation for smooth ball movement on Client
     interpolateBall() {
-        if (this.snapshotBuffer.length < 2) {
-            // Not enough snapshots - use latest if available
-            if (this.snapshotBuffer.length === 1) {
-                this.ball.x = this.snapshotBuffer[0].x;
-                this.ball.y = this.snapshotBuffer[0].y;
-            }
+        if (this.snapshotBuffer.length === 0) return;
+
+        if (this.snapshotBuffer.length === 1) {
+            // Single snapshot - just use it directly
+            this.ball.x = this.snapshotBuffer[0].x;
+            this.ball.y = this.snapshotBuffer[0].y;
             return;
         }
 
-        // Render time is slightly behind server
         const renderTime = Date.now() - this.interpolationDelay;
+        const latest = this.snapshotBuffer[this.snapshotBuffer.length - 1];
+        const oldest = this.snapshotBuffer[0];
+
+        // If render time is ahead of all snapshots, extrapolate from latest
+        if (renderTime >= latest.time) {
+            const timeSinceLast = (renderTime - latest.time) / 1000;
+            this.ball.x = latest.x + latest.vx * timeSinceLast * 60; // 60fps physics
+            this.ball.y = latest.y + latest.vy * timeSinceLast * 60;
+            return;
+        }
+
+        // If render time is before oldest, use oldest
+        if (renderTime <= oldest.time) {
+            this.ball.x = oldest.x;
+            this.ball.y = oldest.y;
+            return;
+        }
 
         // Find two snapshots to interpolate between
-        let from = this.snapshotBuffer[0];
-        let to = this.snapshotBuffer[1];
-
         for (let i = 0; i < this.snapshotBuffer.length - 1; i++) {
-            if (this.snapshotBuffer[i].time <= renderTime &&
-                this.snapshotBuffer[i + 1].time >= renderTime) {
-                from = this.snapshotBuffer[i];
-                to = this.snapshotBuffer[i + 1];
-                break;
+            const from = this.snapshotBuffer[i];
+            const to = this.snapshotBuffer[i + 1];
+
+            if (from.time <= renderTime && to.time >= renderTime) {
+                const duration = to.time - from.time;
+                const alpha = duration > 0 ? (renderTime - from.time) / duration : 1;
+
+                this.ball.x = from.x + (to.x - from.x) * alpha;
+                this.ball.y = from.y + (to.y - from.y) * alpha;
+                return;
             }
         }
 
-        // Calculate interpolation alpha
-        const duration = to.time - from.time;
-        const alpha = duration > 0 ? Math.min(1, (renderTime - from.time) / duration) : 1;
-
-        // Lerp between snapshots
-        this.ball.x = from.x + (to.x - from.x) * alpha;
-        this.ball.y = from.y + (to.y - from.y) * alpha;
+        // Fallback - use latest snapshot
+        this.ball.x = latest.x;
+        this.ball.y = latest.y;
     }
 
     render() {

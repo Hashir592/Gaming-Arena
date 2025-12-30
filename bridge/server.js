@@ -62,7 +62,7 @@ wss.on('connection', (ws) => {
                     }
                 });
             }
-            else if (data.type === 'GAME_STATE' || data.type === 'SCORE_UPDATE') {
+            else if (data.type === 'GAME_STATE' || data.type === 'SCORE_UPDATE' || data.type === 'GAME_OVER') {
                 if (currentMatchId && matchRooms.has(currentMatchId)) {
                     // Relay to OTHER players in the same match
                     const room = matchRooms.get(currentMatchId);
