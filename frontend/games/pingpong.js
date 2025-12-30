@@ -75,11 +75,7 @@ class PingPongGame {
             () => { console.log('Opponent Connected'); },
             () => {
                 console.log('Opponent Left');
-                // Only show disconnect error if game is still running
-                // (if game ended naturally, this is expected)
-                if (this.running) {
-                    showToast('Opponent disconnected', 'error');
-                }
+                // Removed disconnect toast - it shows falsely after game ends naturally
             }
         );
     }
@@ -87,6 +83,7 @@ class PingPongGame {
     onGameStateReceived(data) {
         // Handle GAME_OVER from Host
         if (data.type === 'GAME_OVER') {
+            console.log('GAME_OVER received:', data);
             this.paddle1.score = data.s1;
             this.paddle2.score = data.s2;
             updateScore(this.paddle1.score, this.paddle2.score);
