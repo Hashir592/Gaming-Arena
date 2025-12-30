@@ -138,7 +138,8 @@ const api = {
     },
 
     async getPlayer(playerId) {
-        const response = await fetch(`${API_BASE}/players/${playerId}`);
+        // Add timestamp to prevent caching
+        const response = await fetch(`${API_BASE}/players/${playerId}?_t=${Date.now()}`);
         if (!response.ok) return null;
         return response.json();
     },

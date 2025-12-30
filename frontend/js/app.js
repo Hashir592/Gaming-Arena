@@ -198,11 +198,20 @@ async function showMatchFoundModal() {
     const opponentName = isPlayer1 ? match.player2Name : match.player1Name;
 
     // Check if opponent is a bot
-    const opponent = await api.getPlayer(opponentId);
-    const isOpponentBot = opponent && opponent.isBot;
+    let isOpponentBot = false;
+    try {
+        const opponent = await api.getPlayer(opponentId);
+        console.log('Opponent Data:', opponent);
+        if (opponent && opponent.isBot) {
+            isOpponentBot = true;
+        }
+    } catch (e) {
+        console.error('Error fetching opponent data:', e);
+    }
 
     // Store bot status for game initialization
     appState.isOpponentBot = isOpponentBot;
+    console.log(`Match Found: ${appState.currentPlayer.username} vs ${opponentName} (Bot: ${isOpponentBot})`);
 
     // Update player 1 display (always the human in this view)
     document.getElementById('matchPlayer1').textContent = appState.currentPlayer.username;
