@@ -107,11 +107,9 @@ class PingPongGame {
                     this.ball.vx = data.bvx;
                     this.ball.vy = data.bvy;
                 } else {
-                    // Small deviation: Smoothly adjust velocity to converge
-                    // Don't overwrite position directly to avoid jitter
-                    // Just nudge the position slightly 
-                    this.ball.x += dx * 0.1;
-                    this.ball.y += dy * 0.1;
+                    // Small deviation: Smoothly adjust to converge
+                    this.ball.x += dx * 0.15;
+                    this.ball.y += dy * 0.15;
 
                     // And take the new velocity
                     this.ball.vx = data.bvx;
@@ -295,9 +293,9 @@ class PingPongGame {
             }
         }
 
-        // Handle Remote Player Movement (Interpolation)
+        // Handle Remote Player Movement (Smooth Interpolation)
         if (this.isMultiplayer) {
-            const lerpFactor = 0.2;
+            const lerpFactor = 0.25;
             this.remotePaddleY += (this.targetRemotePaddleY - this.remotePaddleY) * lerpFactor;
 
             if (this.isPlayer1) {
