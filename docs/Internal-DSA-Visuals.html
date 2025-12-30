@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Internal DSA Memory Structures</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+            gap: 40px;
+            align-items: center;
+        }
+
+        h1 {
+            color: #1a237e;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            max-width: 900px;
+            border: 1px solid #e0e0e0;
+        }
+
+        h2 {
+            color: #263238;
+            margin-top: 0;
+            border-bottom: 2px solid #eaeff1;
+            padding-bottom: 15px;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .badge {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+
+        p {
+            color: #546e7a;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        /* Forces diagrams to be centered */
+        .mermaid {
+            display: flex;
+            justify-content: center;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1>DSA Structural Visualization</h1>
+
+    <!-- 1. HASH TABLE -->
+    <div class="card">
+        <h2>1. Hash Table <span class="badge">O(1) Access</span></h2>
+        <p>Implementation: <strong>Separate Chaining</strong> using Linked Lists. An array of buckets stores pointers to
+            list nodes. <br>When <code>ID % Size</code> results in the same index (e.g., Index 5), nodes are chained to
+            handle the collision.</p>
+
+        <div class="mermaid">
+            %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e8eaf6', 'edgeLabelBackground':'#ffffff',
+            'tertiaryColor': '#f5f5f5'}}}%%
+            graph LR
+            %% Nodes
+            struct1[ "Index 0" ]
+            struct2[ "Index 1" ]
+            struct3[ "Index 2" ]
+            struct4[ "Index 3" ]
+            struct5[ "Index 4" ]
+
+            %% The Collision Bucket
+            struct6[ "Index 5" ]
+
+            %% The Chain
+            node1[ "Player ID: 5" ]
+            node2[ "Player ID: 15" ]
+            node3[ "Player ID: 25" ]
+            null[ "NULL" ]
+
+            %% Structure connections (Implied vertical array)
+            struct1 -.- struct2
+            struct2 -.- struct3
+            struct3 -.- struct4
+            struct4 -.- struct5
+            struct5 -.- struct6
+
+            %% Logic connections
+            struct6 ==> node1
+            node1 --> node2
+            node2 --> node3
+            node3 --> null
+
+            %% Styling
+            classDef bucket fill:#cfd8dc,stroke:#455a64,stroke-width:2px;
+            classDef data fill:#c5e1a5,stroke:#33691e,stroke-width:2px;
+            classDef nullbox fill:#eceff1,stroke:#b0bec5,stroke-dasharray: 5 5;
+
+            class struct1,struct2,struct3,struct4,struct5,struct6 bucket
+            class node1,node2,node3 data
+            class null nullbox
+
+            style struct6 fill:#ffe0b2,stroke:#f57c00
+        </div>
+    </div>
+
+    <!-- 2. AVL TREE -->
+    <div class="card">
+        <h2>2. AVL Tree <span class="badge">O(log n) Search</span></h2>
+        <p>A <strong>Self-Balancing Binary Search Tree</strong>. Every node holds a Player Profile, sorted by
+            ELO.<br>The "Balance Factor" ensures the height difference (Left vs Right) never exceeds 1, guaranteeing
+            fast lookups.</p>
+
+        <div class="mermaid">
+            %%{init: {'theme': 'neutrals'}}%%
+            graph TD
+            R(("1200<br>Player A"))
+
+            %% Left Subtree
+            L1(("1000<br>Player B"))
+            L2(("900<br>Player D"))
+            L3(("1100<br>Player E"))
+
+            %% Right Subtree
+            R1(("1400<br>Player C"))
+            R2(("1300<br>Player F"))
+            R3(("1500<br>Player G"))
+
+            %% Edges
+            R --> L1
+            R --> R1
+
+            L1 --> L2
+            L1 --> L3
+
+            R1 --> R2
+            R1 --> R3
+
+            style L3 fill:#fff59d,stroke:#fbc02d,stroke-width:4px
+            click L3 "Matched!"
+        </div>
+    </div>
+
+    <!-- 3. QUEUE -->
+    <div class="card">
+        <h2>3. Queue <span class="badge">FIFO Fairness</span></h2>
+        <p>Implementation: <strong>Singly Linked List</strong> with Head and Tail pointers.<br>Allows <strong>O(1)
+                Enqueue</strong> (at Tail) and <strong>O(1) Dequeue</strong> (at Head).</p>
+
+        <div class="mermaid">
+            graph LR
+            %% The Pointers
+            Head((Head))
+            Tail((Tail))
+
+            %% The Nodes
+            N1[ "Player 1" ]
+            N2[ "Player 2" ]
+            N3[ "Player 3" ]
+            Null[ "NULL" ]
+
+            %% Logic
+            Head ==> N1
+            N1 --> N2
+            N2 --> N3
+            N3 --> Null
+            Tail ==> N3
+
+            style Head fill:#ffab91,stroke:#d84315
+            style Tail fill:#ffab91,stroke:#d84315
+            style N1 fill:#b3e5fc,stroke:#0277bd
+            style N2 fill:#b3e5fc,stroke:#0277bd
+            style N3 fill:#b3e5fc,stroke:#0277bd
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+
+</html>

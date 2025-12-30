@@ -1,0 +1,17 @@
+{
+  "name": "matchmaking-bridge",
+  "version": "1.0.0",
+  "description": "WebSocket bridge between browsers and C++ matchmaking engine",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

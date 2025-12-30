@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multiplayer Game Arena</title>
+    <meta name="description"
+        content="Play Ping Pong, Snake Battle, and Tank Battle against opponents matched to your skill level">
+    <link rel="stylesheet" href="styles/main.css">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700&family=Rajdhani:wght@300;400;500;600;700&display=swap"
+        rel="stylesheet">
+</head>
+
+<body>
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loader">
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+            <div class="loader-ring"></div>
+            <span class="loader-text">Finding Match...</span>
+        </div>
+    </div>
+
+    <!-- Notification Toast -->
+    <div id="toast" class="toast hidden"></div>
+
+    <!-- Main Navigation -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <span class="logo-icon">🎮</span>
+            <span class="logo-text">GAME ARENA</span>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-link active" data-view="games">Games</a>
+            <a href="#" class="nav-link" data-view="dashboard">Dashboard</a>
+            <a href="#" class="nav-link" data-view="leaderboard">Leaderboard</a>
+        </div>
+        <div class="nav-user" id="userInfo">
+            <span class="user-elo" id="userElo">1000</span>
+            <span class="user-name" id="userName">Guest</span>
+            <button class="logout-btn" id="logoutBtn" onclick="logoutPlayer()" style="display:none;">Logout</button>
+        </div>
+    </nav>
+
+    <!-- Main Content Container -->
+    <main class="main-container">
+
+        <!-- Games View -->
+        <section id="gamesView" class="view active">
+            <div class="section-header">
+                <h1>Choose Your Battle</h1>
+                <p class="subtitle">Select a game and find an opponent matched to your skill</p>
+            </div>
+
+            <div class="games-grid">
+                <!-- Ping Pong Card -->
+                <div class="game-card" data-game="pingpong">
+                    <div class="game-card-bg">
+                        <div class="game-icon">🏓</div>
+                    </div>
+                    <div class="game-info">
+                        <h2>Ping Pong</h2>
+                        <p>Classic paddle action</p>
+                        <div class="game-stats">
+                            <span class="queue-count">Queue: <span id="pingpongQueue">0</span></span>
+                        </div>
+                    </div>
+                    <button class="play-btn" onclick="joinMatchmaking('pingpong')">
+                        <span class="btn-text">Find Match</span>
+                        <span class="btn-icon">→</span>
+                    </button>
+                </div>
+
+                <!-- Snake Battle Card -->
+                <div class="game-card" data-game="snake">
+                    <div class="game-card-bg">
+                        <div class="game-icon">🐍</div>
+                    </div>
+                    <div class="game-info">
+                        <h2>Snake Battle</h2>
+                        <p>Outgrow your opponent</p>
+                        <div class="game-stats">
+                            <span class="queue-count">Queue: <span id="snakeQueue">0</span></span>
+                        </div>
+                    </div>
+                    <button class="play-btn" onclick="joinMatchmaking('snake')">
+                        <span class="btn-text">Find Match</span>
+                        <span class="btn-icon">→</span>
+                    </button>
+                </div>
+
+                <!-- Tank Battle Card -->
+                <div class="game-card" data-game="tank">
+                    <div class="game-card-bg">
+                        <div class="game-icon">🚓</div>
+                    </div>
+                    <div class="game-info">
+                        <h2>Tank Battle</h2>
+                        <p>Destroy or be destroyed</p>
+                        <div class="game-stats">
+                            <span class="queue-count">Queue: <span id="tankQueue">0</span></span>
+                        </div>
+                    </div>
+                    <button class="play-btn" onclick="joinMatchmaking('tank')">
+                        <span class="btn-text">Find Match</span>
+                        <span class="btn-icon">→</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Dashboard View -->
+        <section id="dashboardView" class="view">
+            <div class="section-header">
+                <h1>Player Dashboard</h1>
+                <p class="subtitle">Track your progress and match history</p>
+            </div>
+
+            <div class="dashboard-grid">
+                <!-- Stats Cards -->
+                <div class="stats-container">
+                    <div class="stat-card elo-card">
+                        <div class="stat-icon">⚡</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Current ELO</span>
+                            <span class="stat-value" id="dashElo">1000</span>
+                        </div>
+                    </div>
+                    <div class="stat-card wins-card">
+                        <div class="stat-icon">🏆</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Wins</span>
+                            <span class="stat-value" id="dashWins">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card losses-card">
+                        <div class="stat-icon">💔</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Losses</span>
+                            <span class="stat-value" id="dashLosses">0</span>
+                        </div>
+                    </div>
+                    <div class="stat-card winrate-card">
+                        <div class="stat-icon">📊</div>
+                        <div class="stat-content">
+                            <span class="stat-label">Win Rate</span>
+                            <span class="stat-value" id="dashWinRate">0%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Match History -->
+                <div class="history-container">
+                    <h3>Recent Matches</h3>
+                    <div class="history-list" id="matchHistory">
+                        <div class="no-matches">No matches played yet</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Leaderboard View -->
+        <section id="leaderboardView" class="view">
+            <div class="section-header">
+                <h1>Leaderboard</h1>
+                <p class="subtitle">Top players ranked by ELO</p>
+            </div>
+
+            <div class="leaderboard-tabs">
+                <button class="tab-btn active" data-game="pingpong" onclick="loadLeaderboard('pingpong')">🏓 Ping
+                    Pong</button>
+                <button class="tab-btn" data-game="snake" onclick="loadLeaderboard('snake')">🐍 Snake</button>
+                <button class="tab-btn" data-game="tank" onclick="loadLeaderboard('tank')">🚓 Tank</button>
+            </div>
+
+            <div class="leaderboard-table">
+                <div class="leaderboard-header">
+                    <span class="col-rank">Rank</span>
+                    <span class="col-player">Player</span>
+                    <span class="col-elo">ELO</span>
+                    <span class="col-record">W/L</span>
+                </div>
+                <div class="leaderboard-body" id="leaderboardBody">
+                    <div class="no-players">No players ranked yet</div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Game View (for playing) -->
+        <section id="gameView" class="view">
+            <div class="game-header">
+                <button class="back-btn" onclick="exitGame()">← Exit</button>
+                <div class="game-title" id="currentGameTitle">Game</div>
+                <div class="game-score">
+                    <span id="player1Score">0</span> - <span id="player2Score">0</span>
+                </div>
+            </div>
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <div class="game-controls">
+                <p>Player 1: W/S keys | Player 2: ↑/↓ keys</p>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Login/Register Modal -->
+    <div id="authModal" class="modal">
+        <div class="modal-content">
+            <h2>Welcome to Game Arena</h2>
+            <p>Enter your name to start playing</p>
+            <input type="text" id="playerNameInput" placeholder="Enter your name" maxlength="20">
+            <button class="primary-btn" onclick="registerPlayer()">Start Playing</button>
+        </div>
+    </div>
+
+    <!-- Match Found Modal -->
+    <div id="matchModal" class="modal hidden">
+        <div class="modal-content match-found">
+            <h2>Match Found!</h2>
+            <div class="match-players">
+                <div class="match-player">
+                    <span class="player-name" id="matchPlayer1">Player 1</span>
+                    <span class="player-elo" id="matchPlayer1Elo">1000</span>
+                </div>
+                <span class="vs-text">VS</span>
+                <div class="match-player">
+                    <span class="player-name" id="matchPlayer2">Player 2</span>
+                    <span class="player-badge bot-badge hidden" id="opponentBotBadge">🤖 AI</span>
+                    <span class="player-elo" id="matchPlayer2Elo">1000</span>
+                </div>
+            </div>
+            <button class="primary-btn" onclick="startGame()">Start Game</button>
+        </div>
+    </div>
+
+    <!-- Game Result Modal -->
+    <div id="resultModal" class="modal hidden">
+        <div class="modal-content result">
+            <h2 id="resultTitle">Victory!</h2>
+            <div class="result-details">
+                <div class="elo-change" id="eloChange">+32 ELO</div>
+            </div>
+            <button class="primary-btn" onclick="closeResultModal()">Continue</button>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/app.js"></script>
+    <script src="games/pingpong.js"></script>
+    <script src="games/snake.js"></script>
+    <script src="games/tank.js"></script>
+</body>
+
+</html>

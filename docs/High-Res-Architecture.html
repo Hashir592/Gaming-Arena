@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSA Project System Architecture</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 40px;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .container {
+            background-color: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            width: 90%;
+            max-width: 1200px;
+        }
+
+        .mermaid {
+            display: flex;
+            justify-content: center;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Multiplayer Game System - Architecture Framework</h1>
+    <div class="container">
+        <div class="mermaid">
+            %%{init: {'theme': 'base', 'themeVariables': { 'fontSize': '16px', 'fontFamily': 'arial', 'primaryColor':
+            '#e3f2fd', 'primaryBorderColor': '#1565c0', 'secondaryColor': '#f3e5f5', 'tertiaryColor': '#e8f5e9'}}}%%
+            graph TB
+            %% ==========================================
+            %% PRESENTATION LAYER (The User Interface)
+            %% ==========================================
+            subgraph "Presentation Layer (Frontend)"
+            UI[User Interface<br>HTML5 / CSS3]
+            JS[Game Logic<br>JavaScript / Canvas]
+            API_C[API Client<br>fetch / async-await]
+            end
+
+            %% ==========================================
+            %% APPLICATION LAYER (The Gateway)
+            %% ==========================================
+            subgraph "Application Layer (C++ Server)"
+            Server[HTTP Server<br>simple_http.h]
+            Router[Request Router]
+            Endpoints[API Endpoints<br>/api/players]
+            end
+
+            %% ==========================================
+            %% DOMAIN LAYER (Business Logic)
+            %% ==========================================
+            subgraph "Domain Layer (Services)"
+            MM_S[Matchmaker Service<br>Core Logic]
+            RS_S[Ranking Service<br>ELO Calc]
+            HS_S[History Service<br>Records]
+            end
+
+            %% ==========================================
+            %% DATA LAYER (The DSA Core)
+            %% ==========================================
+            subgraph "Data Layer (Custom C++ Structures)"
+            direction TB
+
+            HT_Data[("HashTable")]
+            AVL_Data[("AVL Tree")]
+            Q_Data[("Queue")]
+
+            HT_Desc[Stores Profiles]
+            AVL_Desc[Rank-Based Matching]
+            Q_Desc[Lobby Fairness]
+
+            HT_Data -. "O(1) Access" .-> HT_Desc
+            AVL_Data -. "O(log n) Search" .-> AVL_Desc
+            Q_Data -. "FIFO" .-> Q_Desc
+            end
+
+            %% ==========================================
+            %% CONNECTIONS
+            %% ==========================================
+
+            %% Basic Flow
+            UI ==> JS
+            JS ==> API_C
+            API_C == "JSON / HTTP" ==> Server
+            Server --> Router
+            Router --> Endpoints
+
+            %% Service Connections
+            Endpoints --> MM_S
+            Endpoints --> RS_S
+            Endpoints --> HS_S
+
+            %% Data Connections
+            MM_S -. "Reads/Writes" .-> HT_Data
+            MM_S -. "Enqueues" .-> Q_Data
+            MM_S -. "Searches" .-> AVL_Data
+
+            RS_S -. "Updates" .-> AVL_Data
+
+            %% Styling Nodes
+            style UI fill:#eceff1,stroke:#455a64,stroke-width:2px
+            style Server fill:#bbdefb,stroke:#0d47a1,stroke-width:2px
+            style MM_S fill:#e1bee7,stroke:#4a148c,stroke-width:2px
+            style HT_Data fill:#c8e6c9,stroke:#1b5e20,stroke-width:3px
+            style AVL_Data fill:#c8e6c9,stroke:#1b5e20,stroke-width:3px
+            style Q_Data fill:#c8e6c9,stroke:#1b5e20,stroke-width:3px
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true });
+    </script>
+</body>
+
+</html>

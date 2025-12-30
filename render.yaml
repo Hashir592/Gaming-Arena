@@ -1,0 +1,23 @@
+# Render.com Blueprint
+# https://render.com/docs/blueprint-spec
+#
+# Deploy: Connect GitHub repo → Render auto-detects this file
+
+services:
+  - type: web
+    name: matchmaking-arena
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    
+    # Free tier settings
+    plan: free
+    
+    # Health check
+    healthCheckPath: /health
+    
+    # Environment (optional overrides)
+    envVars:
+      - key: PORT
+        value: 3000
+      - key: ENGINE_PATH
+        value: /app/backend-cpp/engine
