@@ -3,7 +3,8 @@
  * Handles all communication with the C++ backend
  */
 
-const API_BASE = 'http://localhost:8080/api';
+// Use relative path so it works both locally and when deployed
+const API_BASE = '/api';
 
 const api = {
     // ==================== Player Endpoints ====================

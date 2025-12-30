@@ -1,196 +1,124 @@
 /**
- * WebSocket Bridge Server
+ * Game Arena Web Server
  * 
- * PURPOSE:
- * Acts as a translator between browser WebSocket clients and the C++ matchmaking engine.
+ * Serves the ORIGINAL frontend and proxies API calls to C++ backend
  * 
- * ARCHITECTURE:
- *   Browser --[WebSocket]--> Node.js --[stdin/stdout]--> C++ Engine
- * 
- * NO MATCHMAKING LOGIC HERE - just message routing!
+ * Architecture:
+ *   Browser → Node.js (port 3000) → C++ Backend (port 8080)
+ *                ↓
+ *         Serves frontend/index.html
  */
 
-const WebSocket = require('ws');
+const express = require('express');
 const { spawn } = require('child_process');
 const path = require('path');
-const express = require('express');
 const http = require('http');
 
-// Configuration
 const PORT = process.env.PORT || 3000;
+const CPP_PORT = 8080;
 const isWindows = process.platform === 'win32';
-const engineName = isWindows ? 'engine.exe' : 'engine';
-const ENGINE_PATH = process.env.ENGINE_PATH || path.join(__dirname, '..', 'backend-cpp', engineName);
-
-// ============== EXPRESS SERVER (for static files) ==============
+const serverExe = isWindows ? 'server.exe' : 'server';
 
 const app = express();
-app.use(express.static(path.join(__dirname, 'public')));
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: 'ok', engine: engineProcess ? 'running' : 'stopped' });
-});
+// ============== START C++ BACKEND ==============
 
-const server = http.createServer(app);
+let cppProcess = null;
 
-// ============== WEBSOCKET SERVER ==============
+function startCppBackend() {
+    const cppPath = path.join(__dirname, '..', 'backend-cpp', serverExe);
+    console.log('[Server] Starting C++ backend from:', cppPath);
 
-const wss = new WebSocket.Server({ server });
-
-// Client tracking: clientId -> WebSocket
-const clients = new Map();
-let clientCounter = 0;
-
-// ============== C++ ENGINE PROCESS ==============
-
-let engineProcess = null;
-let engineBuffer = '';
-
-function startEngine() {
-    console.log('[Bridge] Starting C++ engine from:', ENGINE_PATH);
-
-    engineProcess = spawn(ENGINE_PATH, [], {
-        stdio: ['pipe', 'pipe', 'pipe']
+    cppProcess = spawn(cppPath, [], {
+        cwd: path.join(__dirname, '..', 'backend-cpp'),
+        stdio: ['ignore', 'pipe', 'pipe']
     });
 
-    engineProcess.on('error', (err) => {
-        console.error('[Bridge] Engine failed to start:', err.message);
+    cppProcess.stdout.on('data', (data) => {
+        console.log('[C++ Backend]', data.toString().trim());
     });
 
-    engineProcess.on('exit', (code) => {
-        console.log('[Bridge] Engine exited with code:', code);
+    cppProcess.stderr.on('data', (data) => {
+        console.error('[C++ Backend Error]', data.toString().trim());
+    });
+
+    cppProcess.on('error', (err) => {
+        console.error('[Server] Failed to start C++ backend:', err.message);
+    });
+
+    cppProcess.on('exit', (code) => {
+        console.log('[Server] C++ backend exited with code:', code);
         // Restart after delay
-        setTimeout(startEngine, 1000);
-    });
-
-    // Handle engine stdout (responses)
-    engineProcess.stdout.on('data', (data) => {
-        engineBuffer += data.toString();
-        processEngineOutput();
-    });
-
-    // Handle engine stderr (logs)
-    engineProcess.stderr.on('data', (data) => {
-        console.log('[Engine]', data.toString().trim());
+        setTimeout(startCppBackend, 2000);
     });
 }
 
-function processEngineOutput() {
-    // Process complete lines from engine
-    const lines = engineBuffer.split('\n');
+// ============== PROXY API CALLS TO C++ ==============
 
-    // Keep incomplete last line in buffer
-    engineBuffer = lines.pop() || '';
-
-    for (const line of lines) {
-        if (!line.trim()) continue;
-
-        try {
-            const response = JSON.parse(line);
-            routeResponse(response);
-        } catch (err) {
-            console.error('[Bridge] Failed to parse engine response:', line);
+app.use('/api', (req, res) => {
+    const options = {
+        hostname: 'localhost',
+        port: CPP_PORT,
+        path: '/api' + req.url,
+        method: req.method,
+        headers: {
+            'Content-Type': 'application/json'
         }
-    }
-}
+    };
 
-function routeResponse(response) {
-    const clientId = response.clientId;
+    const proxyReq = http.request(options, (proxyRes) => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res);
+    });
 
-    if (!clientId) {
-        console.error('[Bridge] Response missing clientId:', response);
-        return;
-    }
+    proxyReq.on('error', (err) => {
+        console.error('[Proxy Error]', err.message);
+        res.status(503).json({ error: 'Backend unavailable' });
+    });
 
-    const ws = clients.get(clientId);
-    if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(response));
+    if (req.method === 'POST' || req.method === 'PUT') {
+        let body = '';
+        req.on('data', chunk => body += chunk);
+        req.on('end', () => {
+            proxyReq.write(body);
+            proxyReq.end();
+        });
     } else {
-        console.log('[Bridge] Client not found for response:', clientId);
+        proxyReq.end();
     }
-}
-
-function sendToEngine(message) {
-    if (engineProcess && engineProcess.stdin.writable) {
-        engineProcess.stdin.write(JSON.stringify(message) + '\n');
-    } else {
-        console.error('[Bridge] Engine not available');
-    }
-}
-
-// ============== WEBSOCKET HANDLERS ==============
-
-wss.on('connection', (ws) => {
-    // Generate unique client ID
-    const clientId = `ws-${++clientCounter}-${Date.now()}`;
-    clients.set(clientId, ws);
-
-    console.log('[Bridge] Client connected:', clientId);
-
-    // Send client their ID
-    ws.send(JSON.stringify({ type: 'CONNECTED', clientId }));
-
-    // Handle messages from browser
-    ws.on('message', (data) => {
-        try {
-            const message = JSON.parse(data.toString());
-
-            // Inject clientId into message
-            message.clientId = clientId;
-
-            console.log('[Bridge] Received:', message.cmd, 'from', clientId);
-
-            // Forward to C++ engine
-            sendToEngine(message);
-
-        } catch (err) {
-            console.error('[Bridge] Invalid message from client:', err.message);
-            ws.send(JSON.stringify({ type: 'ERROR', message: 'Invalid message format' }));
-        }
-    });
-
-    // Handle disconnect
-    ws.on('close', () => {
-        console.log('[Bridge] Client disconnected:', clientId);
-
-        // Notify engine about disconnect
-        sendToEngine({ cmd: 'DISCONNECT', clientId });
-
-        // Remove from tracking
-        clients.delete(clientId);
-    });
-
-    ws.on('error', (err) => {
-        console.error('[Bridge] WebSocket error for', clientId, ':', err.message);
-    });
 });
 
-// ============== STARTUP ==============
+// ============== SERVE ORIGINAL FRONTEND ==============
 
-// Start C++ engine
-startEngine();
+app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
-// Start HTTP/WebSocket server
-server.listen(PORT, () => {
-    console.log('=========================================');
-    console.log('  Matchmaking WebSocket Bridge');
-    console.log('=========================================');
-    console.log(`  HTTP:      http://localhost:${PORT}`);
-    console.log(`  WebSocket: ws://localhost:${PORT}`);
-    console.log('=========================================');
+// Fallback to index.html
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'frontend', 'index.html'));
 });
+
+// ============== START SERVER ==============
+
+// Start C++ backend first
+startCppBackend();
+
+// Wait a bit for C++ to start, then start web server
+setTimeout(() => {
+    app.listen(PORT, () => {
+        console.log('=========================================');
+        console.log('  🎮 GAME ARENA - Online');
+        console.log('=========================================');
+        console.log(`  Website: http://localhost:${PORT}`);
+        console.log('  C++ API: http://localhost:' + CPP_PORT);
+        console.log('=========================================');
+        console.log('  Share this URL with friends!');
+        console.log('=========================================');
+    });
+}, 2000);
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\n[Bridge] Shutting down...');
-
-    if (engineProcess) {
-        engineProcess.kill();
-    }
-
-    wss.clients.forEach(ws => ws.close());
-    server.close();
-
+    console.log('\n[Server] Shutting down...');
+    if (cppProcess) cppProcess.kill();
     process.exit(0);
 });

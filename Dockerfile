@@ -1,9 +1,5 @@
-# Dockerfile for Render.com Deployment
-#
-# Builds C++ engine and runs Node.js WebSocket bridge
-# 
-# Build: docker build -t matchmaking .
-# Run:   docker run -p 3000:3000 matchmaking
+# Dockerfile for Game Arena
+# Runs the original frontend + C++ backend
 
 FROM node:18-slim
 
@@ -12,23 +8,23 @@ RUN apt-get update && apt-get install -y g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy and build C++ engine
+# Copy and build C++ server (the original HTTP server)
 COPY backend-cpp/ ./backend-cpp/
-RUN cd backend-cpp && g++ -std=c++11 -O2 -o engine matchmaking_engine.cpp
+RUN cd backend-cpp && g++ -std=c++11 -O2 -pthread -o server server_compat.cpp
 
 # Copy Node.js bridge
+COPY bridge/package*.json ./bridge/
+RUN cd bridge && npm install --production
+
 COPY bridge/ ./bridge/
 
-# Install Node dependencies
-WORKDIR /app/bridge
-RUN npm install --production
+# Copy original frontend
+COPY frontend/ ./frontend/
 
-# Set engine path for Node.js
-ENV ENGINE_PATH=/app/backend-cpp/engine
+# Port
 ENV PORT=3000
-
-# Expose port
 EXPOSE 3000
 
-# Start Node.js server (which spawns C++ engine)
+# Start Node.js (which spawns C++ backend)
+WORKDIR /app/bridge
 CMD ["node", "server.js"]
