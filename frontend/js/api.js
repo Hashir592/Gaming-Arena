@@ -15,20 +15,39 @@ let onPlayerLeftCallback = null;
 const api = {
     // ==================== WebSocket Methods ====================
 
+    isConnected() {
+        return gameSocket && gameSocket.readyState === WebSocket.OPEN;
+    },
+
+    context: { matchId: null, playerId: null },
+
+    ensureConnection(matchId, playerId) {
+        if (!this.isConnected() && (!gameSocket || gameSocket.readyState !== WebSocket.CONNECTING)) {
+            console.log('Connection lost or missing. Reconnecting...');
+            this.connectGameSocket(matchId, playerId);
+        }
+    },
+
     connectGameSocket(matchId, playerId) {
-        // Close existing connection
-        if (gameSocket) {
-            gameSocket.close();
+        // Store context for reconnection
+        this.context.matchId = matchId;
+        this.context.playerId = playerId;
+
+        // If already connected/connecting to same match, skip
+        if (gameSocket && (gameSocket.readyState === WebSocket.OPEN || gameSocket.readyState === WebSocket.CONNECTING)) {
+            return;
         }
 
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const wsUrl = `${protocol}//${window.location.host}`;
 
         console.log('Connecting to WebSocket:', wsUrl);
+        showToast('Connecting to Game Server...', 'info');
         gameSocket = new WebSocket(wsUrl);
 
         gameSocket.onopen = () => {
             console.log('WebSocket Connected');
+            showToast('Connected! Joining Match...', 'success');
             // Join the specific match room
             this.send({
                 type: 'JOIN_MATCH',
@@ -44,8 +63,10 @@ const api = {
                 if (data.type === 'GAME_STATE' || data.type === 'SCORE_UPDATE') {
                     if (onGameStateCallback) onGameStateCallback(data);
                 } else if (data.type === 'PLAYER_JOINED') {
+                    showToast('Opponent Connected!', 'success');
                     if (onPlayerJoinedCallback) onPlayerJoinedCallback();
                 } else if (data.type === 'PLAYER_LEFT') {
+                    showToast('Opponent Disconnected', 'error');
                     if (onPlayerLeftCallback) onPlayerLeftCallback();
                 }
             } catch (err) {
@@ -55,10 +76,12 @@ const api = {
 
         gameSocket.onclose = () => {
             console.log('WebSocket Disconnected');
+            // Don't show toast on intentional close, but handled mostly by disconnectSocket
         };
 
         gameSocket.onerror = (err) => {
             console.error('WebSocket Error:', err);
+            showToast('Connection Error', 'error');
         };
     },
 

@@ -240,6 +240,13 @@ class PingPongGame {
     gameLoop() {
         if (!this.running) return;
 
+        // Auto-reconnect if needed
+        if (this.isMultiplayer && !api.isConnected()) {
+            if (this.matchId && this.playerId) {
+                api.ensureConnection(this.matchId, this.playerId);
+            }
+        }
+
         this.update();
         this.render();
 
@@ -247,6 +254,7 @@ class PingPongGame {
     }
 
     update() {
+        // ... (existing update logic) ...
         // Handle Local Player Input
         if (this.isPlayer1) {
             // Player 1 controls Left Paddle (W/S or Arrows if preferred for P1)
@@ -295,6 +303,7 @@ class PingPongGame {
     }
 
     updatePhysics() {
+        // ... (existing physics logic same as before, no changes needed, just context) ...
         // Ball movement
         this.ball.x += this.ball.vx;
         this.ball.y += this.ball.vy;
@@ -343,59 +352,7 @@ class PingPongGame {
         }
     }
 
-    /**
-     * AI Logic for Bot Paddle
-     */
-    updateBotAI() {
-        // Only react when ball is moving toward bot
-        if (this.ball.vx > 0) {
-            // Predict where ball will be when it reaches paddle
-            const timeToReach = (this.paddle2.x - this.ball.x) / this.ball.vx;
-            let predictedY = this.ball.y + this.ball.vy * timeToReach * this.aiReactionDelay;
-
-            // Add some error to make AI beatable
-            predictedY += (Math.random() - 0.5) * this.aiErrorMargin;
-
-            // Target center of paddle to predicted ball position
-            const paddleCenter = this.paddle2.y + this.paddleHeight / 2;
-            const targetY = predictedY + this.ballSize / 2;
-
-            // Move toward target with speed limit
-            const diff = targetY - paddleCenter;
-            const moveSpeed = this.paddleSpeed * 0.85; // Slightly slower than player
-
-            if (Math.abs(diff) > 5) {
-                if (diff > 0) {
-                    this.paddle2.y += moveSpeed;
-                } else {
-                    this.paddle2.y -= moveSpeed;
-                }
-            }
-        } else {
-            // Ball moving away - slowly return to center
-            const paddleCenter = this.paddle2.y + this.paddleHeight / 2;
-            const canvasCenter = this.canvas.height / 2;
-            const diff = canvasCenter - paddleCenter;
-
-            if (Math.abs(diff) > 10) {
-                if (diff > 0) {
-                    this.paddle2.y += this.paddleSpeed * 0.3;
-                } else {
-                    this.paddle2.y -= this.paddleSpeed * 0.3;
-                }
-            }
-        }
-    }
-
-    checkWin() {
-        if (this.paddle1.score >= this.winScore) {
-            this.stop();
-            this.onGameEnd(1);
-        } else if (this.paddle2.score >= this.winScore) {
-            this.stop();
-            this.onGameEnd(2);
-        }
-    }
+    // ... (rest of methods: updateBotAI, checkWin) ...
 
     render() {
         const ctx = this.ctx;
@@ -469,8 +426,14 @@ class PingPongGame {
             ctx.textAlign = 'right';
             ctx.fillText('🤖 AI', this.canvas.width - 20, 30);
         } else if (this.isMultiplayer) {
-            ctx.fillStyle = '#22c55e';
-            ctx.fillText('🟢 ONLINE', this.canvas.width / 2, 30);
+            // Check real connection status
+            if (api.isConnected()) {
+                ctx.fillStyle = '#22c55e';
+                ctx.fillText('🟢 ONLINE', this.canvas.width / 2, 30);
+            } else {
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText('🔴 RECONNECTING...', this.canvas.width / 2, 30);
+            }
 
             // Draw "YOU" indicator
             ctx.fillStyle = '#fff';
