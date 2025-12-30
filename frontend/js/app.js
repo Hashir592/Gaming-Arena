@@ -222,7 +222,45 @@ async function showMatchFoundModal() {
         }
     }
 
+    // Connect to Game Socket IMMEDIATELY when match is found
+    // This gives time for connection to establish during countdown
+    if (!isOpponentBot) {
+        api.connectGameSocket(match.matchId, appState.currentPlayer.id);
+    }
+
     showModal('matchModal');
+
+    // Auto-start countdown
+    const matchBtn = document.getElementById('startMatchBtn');
+    if (matchBtn) matchBtn.style.display = 'none'; // Hide manual button if present (removed in HTML)
+
+    const countdownEl = document.createElement('div');
+    countdownEl.id = 'matchCountdown';
+    countdownEl.className = 'match-countdown';
+    countdownEl.style.fontSize = '48px';
+    countdownEl.style.fontWeight = 'bold';
+    countdownEl.style.color = '#22c55e';
+    countdownEl.style.margin = '20px 0';
+    countdownEl.textContent = 'Starting in 3...';
+
+    const modalContent = document.querySelector('#matchModal .modal-content');
+    const existing = document.getElementById('matchCountdown');
+    if (existing) existing.remove();
+    modalContent.appendChild(countdownEl);
+
+    let count = 3;
+    const interval = setInterval(() => {
+        count--;
+        if (count > 0) {
+            countdownEl.textContent = `Starting in ${count}...`;
+        } else {
+            clearInterval(interval);
+            countdownEl.textContent = 'GO!';
+            setTimeout(() => {
+                startGame();
+            }, 500);
+        }
+    }, 1000);
 }
 
 // ==================== Game Management ====================
@@ -256,8 +294,7 @@ function startGame() {
         matchId = appState.currentMatch.matchId;
         isPlayer1 = appState.currentMatch.player1Id === appState.currentPlayer.id;
 
-        // Connect to Game Socket
-        api.connectGameSocket(matchId, playerId);
+        // Socket connection handled in showMatchFoundModal
     }
 
     console.log(`Starting Game: Bot=${isOpponentBot}, Match=${matchId}, P1=${isPlayer1}`);
