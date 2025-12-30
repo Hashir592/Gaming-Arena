@@ -172,15 +172,13 @@ class PingPongGame {
     }
 
     setupInput() {
+        // Keyboard controls
         window.addEventListener('keydown', (e) => {
-            // Don't intercept keys when typing in input fields
             if (document.activeElement.tagName === 'INPUT' ||
                 document.activeElement.tagName === 'TEXTAREA') {
                 return;
             }
-
             this.keys[e.key] = true;
-            // Prevent scrolling
             if (['ArrowUp', 'ArrowDown', 'w', 's'].includes(e.key)) {
                 e.preventDefault();
             }
@@ -189,6 +187,33 @@ class PingPongGame {
         window.addEventListener('keyup', (e) => {
             this.keys[e.key] = false;
         });
+
+        // Touch controls for mobile
+        this.canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            this.handleTouch(e);
+        }, { passive: false });
+
+        this.canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            this.handleTouch(e);
+        }, { passive: false });
+    }
+
+    handleTouch(e) {
+        const touch = e.touches[0];
+        const rect = this.canvas.getBoundingClientRect();
+        const touchY = touch.clientY - rect.top;
+
+        // Center paddle on touch
+        const targetY = touchY - this.paddleHeight / 2;
+
+        // Update local paddle position directly
+        if (this.isPlayer1) {
+            this.paddle1.y = targetY;
+        } else {
+            this.paddle2.y = targetY;
+        }
     }
 
     start() {
