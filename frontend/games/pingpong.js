@@ -93,12 +93,30 @@ class PingPongGame {
                 this.targetRemotePaddleY = data.p1y;
             }
 
-            // Sync ball position (client trusts host completely for ball)
+            // Sync ball position (Smooth Reconciliation)
             if (data.bx !== undefined && data.by !== undefined) {
-                this.ball.x = data.bx;
-                this.ball.y = data.by;
-                this.ball.vx = data.bvx;
-                this.ball.vy = data.bvy;
+                // Calculate difference between local prediction and server truth
+                const dx = data.bx - this.ball.x;
+                const dy = data.by - this.ball.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // If deviation is large (lag spike/packet loss), hard snap
+                if (dist > 50) {
+                    this.ball.x = data.bx;
+                    this.ball.y = data.by;
+                    this.ball.vx = data.bvx;
+                    this.ball.vy = data.bvy;
+                } else {
+                    // Small deviation: Smoothly adjust velocity to converge
+                    // Don't overwrite position directly to avoid jitter
+                    // Just nudge the position slightly 
+                    this.ball.x += dx * 0.1;
+                    this.ball.y += dy * 0.1;
+
+                    // And take the new velocity
+                    this.ball.vx = data.bvx;
+                    this.ball.vy = data.bvy;
+                }
             }
 
             // Sync scores
@@ -203,7 +221,11 @@ class PingPongGame {
     handleTouch(e) {
         const touch = e.touches[0];
         const rect = this.canvas.getBoundingClientRect();
-        const touchY = touch.clientY - rect.top;
+
+        // Calculate scaling factor between CSS size and internal canvas size
+        const scaleY = this.canvas.height / rect.height;
+
+        const touchY = (touch.clientY - rect.top) * scaleY;
 
         // Center paddle on touch
         const targetY = touchY - this.paddleHeight / 2;
