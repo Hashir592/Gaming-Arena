@@ -97,9 +97,16 @@ async function loadPlayer(playerId) {
             appState.currentPlayer = player;
             updateUserDisplay();
             hideModal('authModal');
+        } else {
+            // Player not found (server restarted) - clear stale session
+            console.log('Player not found, clearing stale session');
+            localStorage.removeItem('playerId');
+            showModal('authModal');
         }
     } catch (error) {
+        console.error('Error loading player:', error);
         localStorage.removeItem('playerId');
+        showModal('authModal');
     }
 }
 
