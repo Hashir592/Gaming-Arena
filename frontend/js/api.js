@@ -60,13 +60,13 @@ const api = {
             try {
                 const data = JSON.parse(event.data);
 
-                if (data.type === 'GAME_STATE' || data.type === 'SCORE_UPDATE') {
+                if (data.type === 'GAME_STATE' || data.type === 'SCORE_UPDATE' || data.type === 'GAME_OVER') {
                     if (onGameStateCallback) onGameStateCallback(data);
                 } else if (data.type === 'PLAYER_JOINED') {
                     showToast('Opponent Connected!', 'success');
                     if (onPlayerJoinedCallback) onPlayerJoinedCallback();
                 } else if (data.type === 'PLAYER_LEFT') {
-                    showToast('Opponent Disconnected', 'error');
+                    console.log('Player left notification received');
                     if (onPlayerLeftCallback) onPlayerLeftCallback();
                 }
             } catch (err) {
