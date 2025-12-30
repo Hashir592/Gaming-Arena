@@ -289,10 +289,9 @@ class PingPongGame {
         this.paddle1.y = Math.max(0, Math.min(this.canvas.height - this.paddleHeight, this.paddle1.y));
         this.paddle2.y = Math.max(0, Math.min(this.canvas.height - this.paddleHeight, this.paddle2.y));
 
-        // Physics: Only Host (Player 1) or Singleplayer runs ball physics
-        if (this.isPlayer1 || !this.isMultiplayer) {
-            this.updatePhysics();
-        }
+        // Physics: Run physics for everyone to ensure smooth movement (Client prediction)
+        // Client will correct position when server update arrives
+        this.updatePhysics();
     }
 
     updatePhysics() {
