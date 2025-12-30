@@ -418,6 +418,14 @@ public:
             matchesCreated++;
         }
         
+        // Also try to match single player with bot (if they've waited long enough)
+        if (getQueueSize(gameName) == 1) {
+            int matchId = tryCreateMatch(gameName);
+            if (matchId != -1) {
+                matchesCreated++;
+            }
+        }
+        
         return matchesCreated;
     }
     

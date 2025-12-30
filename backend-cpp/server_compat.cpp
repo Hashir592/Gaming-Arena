@@ -282,6 +282,14 @@ int main() {
             return;
         }
         
+        // Try to create a match if player is in queue (handles bot timeout)
+        if (player->isInQueue) {
+            // Try matching for all games since we don't track which game they queued for
+            matchmaker.tryCreateMatch("pingpong");
+            matchmaker.tryCreateMatch("snake");
+            matchmaker.tryCreateMatch("tank");
+        }
+        
         int activeMatchId = matchmaker.getPlayerActiveMatch(playerId);
         
         std::string response = "{" +
