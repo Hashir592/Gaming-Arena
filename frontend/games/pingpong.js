@@ -346,10 +346,12 @@ class PingPongGame {
 
         // Ball collision with paddles
         // Left paddle (Player 1)
+        // Add latency margin if this is remote paddle (we're Player 2)
+        const p1Margin = (this.isMultiplayer && !this.isPlayer1) ? 20 : 0;
         if (this.ball.x <= this.paddle1.x + this.paddleWidth &&
             this.ball.x + this.ballSize >= this.paddle1.x &&
-            this.ball.y + this.ballSize >= this.paddle1.y &&
-            this.ball.y <= this.paddle1.y + this.paddleHeight) {
+            this.ball.y + this.ballSize >= this.paddle1.y - p1Margin &&
+            this.ball.y <= this.paddle1.y + this.paddleHeight + p1Margin) {
             this.ball.vx = Math.abs(this.ball.vx) * 1.05; // Speed up slightly
             this.ball.x = this.paddle1.x + this.paddleWidth;
             // Add angle based on where ball hit paddle
@@ -358,10 +360,12 @@ class PingPongGame {
         }
 
         // Right paddle (Player 2)
+        // Add latency margin if this is remote paddle (we're Player 1)
+        const p2Margin = (this.isMultiplayer && this.isPlayer1) ? 20 : 0;
         if (this.ball.x + this.ballSize >= this.paddle2.x &&
             this.ball.x <= this.paddle2.x + this.paddleWidth &&
-            this.ball.y + this.ballSize >= this.paddle2.y &&
-            this.ball.y <= this.paddle2.y + this.paddleHeight) {
+            this.ball.y + this.ballSize >= this.paddle2.y - p2Margin &&
+            this.ball.y <= this.paddle2.y + this.paddleHeight + p2Margin) {
             this.ball.vx = -Math.abs(this.ball.vx) * 1.05;
             this.ball.x = this.paddle2.x - this.ballSize;
             let hitPos = (this.ball.y + this.ballSize / 2 - this.paddle2.y) / this.paddleHeight;
