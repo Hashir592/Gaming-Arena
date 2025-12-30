@@ -316,12 +316,20 @@ async function onGameEnd(winner) {
     // Disconnect socket when game ends
     api.disconnectSocket();
 
-    // Winner: 1 = player 1, 2 = player 2
     const match = appState.currentMatch;
-    const winnerId = winner === 1 ? match.player1Id : match.player2Id;
-    const playerWon = winnerId === appState.currentPlayer.id;
+
+    // Handle bot games (no match object)
+    if (!match) {
+        const playerWon = winner === 1; // In bot games, player is always player 1
+        showResultModal(playerWon, playerWon ? 10 : -5); // Fake ELO change for bot games
+        return;
+    }
 
     try {
+        // Determine winner ID based on position (winner 1 = player1, winner 2 = player2)
+        const winnerId = winner === 1 ? match.player1Id : match.player2Id;
+        const playerWon = winnerId === appState.currentPlayer.id;
+
         const result = await api.submitMatchResult(match.matchId, winnerId);
 
         // Update local player data
@@ -334,7 +342,11 @@ async function onGameEnd(winner) {
         const eloChange = newPlayer.elo - oldElo;
         showResultModal(playerWon, eloChange);
     } catch (error) {
-        showToast('Failed to submit result', 'error');
+        console.error('Failed to submit match result:', error);
+        // Still show result even if API fails
+        const winnerId = winner === 1 ? match.player1Id : match.player2Id;
+        const playerWon = winnerId === appState.currentPlayer.id;
+        showResultModal(playerWon, playerWon ? 15 : -10); // Approximate ELO
     }
 }
 

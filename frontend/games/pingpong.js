@@ -48,8 +48,8 @@ class PingPongGame {
 
         // Snapshot buffer for smooth ball interpolation (Client only)
         this.snapshotBuffer = [];
-        this.maxSnapshots = 4;
-        this.interpolationDelay = 40; // ms behind server
+        this.maxSnapshots = 5;
+        this.interpolationDelay = 25; // ms behind server (lower = snappier)
 
         // AI settings
         this.aiReactionDelay = 0.15; // Slight delay to make AI beatable
