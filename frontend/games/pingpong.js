@@ -73,7 +73,14 @@ class PingPongGame {
         api.setGameCallbacks(
             (data) => this.onGameStateReceived(data),
             () => { console.log('Opponent Connected'); },
-            () => { console.log('Opponent Left'); showToast('Opponent disconnected', 'error'); }
+            () => {
+                console.log('Opponent Left');
+                // Only show disconnect error if game is still running
+                // (if game ended naturally, this is expected)
+                if (this.running) {
+                    showToast('Opponent disconnected', 'error');
+                }
+            }
         );
     }
 
