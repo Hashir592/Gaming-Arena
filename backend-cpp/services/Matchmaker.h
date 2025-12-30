@@ -165,9 +165,9 @@ public:
      * 
      * This is the main matchmaking logic using AVL tree for closest-rank search.
      * 
-     * DEMO MODE ENHANCEMENT:
-     * - If queue size is 1 and it's a human, match with closest-ELO bot
-     * - If queue size >= 2, try Human vs Human first, fallback to bot
+     * WAIT FOR HUMAN FIRST:
+     * - Wait for a human opponent for 10 seconds
+     * - Only fall back to bot if no human joins in time
      * 
      * @param gameName Game to match for
      * @return Match ID if match created, -1 otherwise
@@ -180,8 +180,17 @@ public:
         int botCount = 0;
         int* bots = getBotsForGame(gameName, botCount);
         
-        // CASE A: Queue size == 1 (single human) -> Match with Bot
+        // WAIT FOR HUMAN: If only 1 player, check if they've waited long enough (10 seconds)
         if (queue->size() == 1) {
+            QueueEntry* frontEntry = queue->front();
+            if (frontEntry) {
+                long long waitTime = getCurrentTime() - frontEntry->joinTime;
+                // Wait 10 seconds for a human opponent before matching with bot
+                if (waitTime < 10) {
+                    return -1;  // Keep waiting for human opponent
+                }
+            }
+            // Waited long enough, match with bot
             return matchHumanWithBot(gameName);
         }
         
