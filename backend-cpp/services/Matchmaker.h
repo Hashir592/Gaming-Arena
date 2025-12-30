@@ -185,8 +185,8 @@ public:
             QueueEntry* frontEntry = queue->front();
             if (frontEntry) {
                 long long waitTime = getCurrentTime() - frontEntry->joinTime;
-                // Wait 10 seconds for a human opponent before matching with bot
-                if (waitTime < 10) {
+                // Wait 5 seconds for a human opponent before matching with bot
+                if (waitTime < 5) {
                     return -1;  // Keep waiting for human opponent
                 }
             }
