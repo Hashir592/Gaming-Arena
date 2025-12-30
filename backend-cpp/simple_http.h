@@ -216,7 +216,7 @@ public:
         
         while (running) {
             struct sockaddr_in client_addr;
-            int client_len = sizeof(client_addr);
+            socklen_t client_len = sizeof(client_addr);
             
             SOCKET client = accept(server_socket, (struct sockaddr*)&client_addr, &client_len);
             if (client != INVALID_SOCKET) {
